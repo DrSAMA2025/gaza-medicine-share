@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Gaza Medicine Share – Free community medicine sharing platform | مشاركة الأدوية في غزة" />
+  <title>Gaza Medicine Share | مشاركة الأدوية</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1a4a3a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+
+  <!-- Open Graph (for WhatsApp/Facebook/Telegram previews) -->
+  <meta property="og:title" content="Gaza Medicine Share | مشاركة الأدوية" />
+  <meta property="og:description" content="Free community platform to share unused medicines in Gaza | منصة مجانية لمشاركة الأدوية غير المستخدمة في غزة" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/yourusername/gaza-medicine-share/main/og-image.png" />
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getFirestore, collection, addDoc, getDocs, query,
+      orderBy, serverTimestamp, doc, updateDoc, increment,
+      where, onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // ============================================================
+    // 🔧 REPLACE WITH YOUR FIREBASE CONFIG
+    // Get this from: Firebase Console → Project Settings → Web App
+    // ============================================================
+    const firebaseConfig = {
+    	apiKey: "AIzaSyCRWajc5WaLGuimeobM516niAf0Cfn1RYI",
+    	authDomain: "meds-share-project.firebaseapp.com",
+    	projectId: "meds-share-project",
+    	storageBucket: "meds-share-project.firebasestorage.app",
+    	messagingSenderId: "618729368853",
+    	appId: "1:618729368853:web:b6b7a3de0641e5a1bd0d1c",
+    	measurementId: "G-5D6PCREC3B"
+    };
+    // ============================================================
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window._db = db;
+    window._firebase = {
+      collection, addDoc, getDocs, query, orderBy,
+      serverTimestamp, doc, updateDoc, increment, where, onSnapshot
+    };
+
+    // Signal app that Firebase is ready
+    window.dispatchEvent(new Event("firebase-ready"));
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ===== DISCLAIMER BANNER ===== -->
+<div class="disclaimer" id="disclaimer">
+  <div class="disclaimer-inner">
+    <span class="disclaimer-icon">⚠️</span>
+    <p id="disc-text">This is a community tool, not a pharmacy. Verify expiry dates. Consult a doctor before using any medicine. We do not verify safety.</p>
+    <button onclick="document.getElementById('disclaimer').style.display='none'" aria-label="Close">✕</button>
+  </div>
+</div>
+
+<!-- ===== HEADER ===== -->
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon">🌿</span>
+      <div>
+        <h1 id="site-title">Gaza Medicine Share</h1>
+        <p id="site-subtitle">Community Medicine Exchange</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="lang-btn" id="lang-toggle" onclick="toggleLang()">عربي</button>
+      <button class="btn-primary" onclick="openModal('post-modal')" id="btn-share">
+        + Share Medicine
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <div class="hero-content">
+    <h2 id="hero-title">Help your community.<br>Share what you have.</h2>
+    <p id="hero-sub">Post medicines you're not using so others in need can find them. Free. Anonymous. No registration.</p>
+    <div class="hero-btns">
+      <button class="btn-primary btn-lg" onclick="openModal('post-modal')" id="btn-hero-share">📦 Share a Medicine</button>
+      <button class="btn-secondary btn-lg" onclick="document.getElementById('listings').scrollIntoView({behavior:'smooth'})" id="btn-hero-find">🔍 Find Medicine</button>
+    </div>
+  </div>
+  <div class="hero-stats">
+    <div class="stat"><span id="stat-count">—</span><small id="stat-label">medicines shared</small></div>
+  </div>
+</section>
+
+<!-- ===== SEARCH & FILTER ===== -->
+<section class="search-section">
+  <div class="search-bar">
+    <input type="text" id="search-input" placeholder="Search medicine name..." oninput="filterListings()" />
+    <button onclick="filterListings()" id="btn-search">🔍</button>
+  </div>
+  <div class="filters">
+    <select id="filter-category" onchange="filterListings()">
+      <option value="" id="opt-all-cat">All categories</option>
+      <option value="antibiotic" id="opt-antibiotic">Antibiotics</option>
+      <option value="painkiller" id="opt-pain">Painkillers</option>
+      <option value="chronic" id="opt-chronic">Chronic / BP / Diabetes</option>
+      <option value="child" id="opt-child">Children's Medicine</option>
+      <option value="wound" id="opt-wound">Wound Care / Antiseptic</option>
+      <option value="other" id="opt-other">Other</option>
+    </select>
+    <select id="filter-location" onchange="filterListings()">
+      <option value="" id="opt-all-loc">All locations</option>
+      <option value="north">North Gaza</option>
+      <option value="city">Gaza City</option>
+      <option value="central">Central Gaza</option>
+      <option value="khan-younis">Khan Younis</option>
+      <option value="rafah">Rafah</option>
+      <option value="other-loc">Other / Unknown</option>
+    </select>
+  </div>
+</section>
+
+<!-- ===== LISTINGS ===== -->
+<main id="listings">
+  <div id="listings-header">
+    <h3 id="listings-title">Available Medicines</h3>
+    <span id="listings-count" class="count-badge"></span>
+  </div>
+  <div id="cards-container">
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <p id="loading-text">Loading medicines...</p>
+    </div>
+  </div>
+  <div id="empty-state" class="empty-state" style="display:none">
+    <p>🌿</p>
+    <p id="empty-text">No medicines found. Be the first to share!</p>
+    <button class="btn-primary" onclick="openModal('post-modal')" id="btn-empty-share">Share a Medicine</button>
+  </div>
+</main>
+
+<!-- ===== POST MODAL ===== -->
+<div id="post-modal" class="modal-overlay" onclick="closeIfOverlay(event,'post-modal')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('post-modal')">✕</button>
+    <h2 id="modal-post-title">Share a Medicine</h2>
+    <p id="modal-post-sub">Help someone in need. Fill in what you can.</p>
+
+    <div class="form-group">
+      <label id="lbl-med-en">Medicine name (English)</label>
+      <input type="text" id="f-med-en" placeholder="e.g. Amoxicillin" />
+    </div>
+    <div class="form-group">
+      <label id="lbl-med-ar">اسم الدواء (عربي)</label>
+      <input type="text" id="f-med-ar" placeholder="مثال: أموكسيسيلين" dir="rtl" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label id="lbl-qty">Quantity</label>
+        <input type="text" id="f-qty" placeholder="e.g. 20 tablets" />
+      </div>
+      <div class="form-group">
+        <label id="lbl-expiry">Expiry date</label>
+        <input type="month" id="f-expiry" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label id="lbl-form">Form</label>
+        <select id="f-form">
+          <option value="tablets">Tablets / Capsules</option>
+          <option value="syrup">Syrup / Liquid</option>
+          <option value="injection">Injection</option>
+          <option value="cream">Cream / Ointment</option>
+          <option value="inhaler">Inhaler</option>
+          <option value="drops">Drops</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label id="lbl-category">Category</label>
+        <select id="f-category">
+          <option value="antibiotic">Antibiotic</option>
+          <option value="painkiller">Painkiller</option>
+          <option value="chronic">Chronic / BP / Diabetes</option>
+          <option value="child">Children's</option>
+          <option value="wound">Wound Care</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label id="lbl-location">Location (optional)</label>
+      <select id="f-location">
+        <option value="">Prefer not to say</option>
+        <option value="north">North Gaza</option>
+        <option value="city">Gaza City</option>
+        <option value="central">Central Gaza</option>
+        <option value="khan-younis">Khan Younis</option>
+        <option value="rafah">Rafah</option>
+        <option value="other-loc">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label id="lbl-contact">How to contact you <span class="required">*</span></label>
+      <input type="text" id="f-contact" placeholder="WhatsApp number or Telegram @username" />
+      <small id="lbl-contact-hint">This will be visible to people who want the medicine</small>
+    </div>
+    <div class="form-group">
+      <label id="lbl-notes">Extra notes (optional)</label>
+      <textarea id="f-notes" rows="2" placeholder="Condition, pickup info, etc."></textarea>
+    </div>
+
+    <div id="post-error" class="error-msg" style="display:none"></div>
+    <button class="btn-primary btn-full" onclick="submitMedicine()" id="btn-submit">📤 Submit</button>
+  </div>
+</div>
+
+<!-- ===== CONTACT MODAL ===== -->
+<div id="contact-modal" class="modal-overlay" onclick="closeIfOverlay(event,'contact-modal')">
+  <div class="modal modal-sm">
+    <button class="modal-close" onclick="closeModal('contact-modal')">✕</button>
+    <h2 id="contact-modal-title">Contact Donor</h2>
+    <div id="contact-modal-body"></div>
+    <p class="contact-disclaimer" id="contact-disc">⚠️ Verify the medicine's expiry date and condition before use. Consult a healthcare professional if unsure.</p>
+  </div>
+</div>
+
+<!-- ===== SETUP GUIDE (shown if Firebase not configured) ===== -->
+<div id="setup-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2>🔧 Setup Required</h2>
+    <p>To make the app work, you need to connect it to a free Firebase database. Follow these steps:</p>
+    <ol class="setup-steps">
+      <li>Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a></li>
+      <li>Create a new project (free Spark plan)</li>
+      <li>Click <strong>Firestore Database</strong> → Create (start in test mode)</li>
+      <li>Go to <strong>Project Settings</strong> → Add Web App → Copy the config</li>
+      <li>Open <code>index.html</code> and replace <code>YOUR_API_KEY</code> etc. with your config</li>
+      <li>In Firestore Rules, paste: <code>allow read, write: if true;</code> (for open access)</li>
+      <li>Deploy to GitHub Pages and you're done!</li>
+    </ol>
+    <p><strong>Cost:</strong> Free forever on Firebase Spark plan (50,000 reads/day).</p>
+  </div>
+</div>
+
+<footer>
+  <p id="footer-text">Gaza Medicine Share — A community initiative. Not affiliated with any government or organization.</p>
+  <p><a href="https://github.com/yourusername/gaza-medicine-share" target="_blank" id="footer-github">View source on GitHub</a></p>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
